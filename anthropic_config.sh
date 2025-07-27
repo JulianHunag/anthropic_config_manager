@@ -280,6 +280,284 @@ EOF
     read -p "按回车键继续..."
 }
 
+# Edit configuration
+edit_config() {
+    print_header
+    print_color "$BLUE" "✏️  编辑配置："
+    echo "----------------------------------------"
+    
+    local configs=($(read_configs))
+    local count=0
+    local config_names=()
+    
+    # Display numbered list
+    for config in "${configs[@]}"; do
+        if [[ -n "$config" ]]; then
+            IFS='|' read -r name token url active <<< "$config"
+            count=$((count + 1))
+            config_names+=("$name")
+            
+            local status=""
+            if [[ "$active" == "true" ]]; then
+                status=" ${GREEN}(当前激活)${NC}"
+            fi
+            
+            echo -e "$count. $name${status}"
+            echo -e "   Token: ${token:0:20}..."
+            echo -e "   URL: $url"
+            echo
+        fi
+    done
+    
+    if [[ $count -eq 0 ]]; then
+        print_color "$RED" "❌ 没有可编辑的配置"
+        read -p "按回车键继续..."
+        return
+    fi
+    
+    echo "0. 返回主菜单"
+    echo
+    
+    while true; do
+        read -p "请选择要编辑的配置 (0-$count): " choice
+        
+        if [[ "$choice" == "0" ]]; then
+            return
+        elif [[ "$choice" =~ ^[1-9][0-9]*$ ]] && [[ $choice -le $count ]]; then
+            local selected_name="${config_names[$((choice-1))]}"
+            edit_single_config "$selected_name"
+            break
+        else
+            print_color "$RED" "❌ 无效选择，请输入 0-$count 之间的数字"
+        fi
+    done
+    
+    echo
+    read -p "按回车键继续..."
+}
+
+# Edit a single configuration
+edit_single_config() {
+    local config_name="$1"
+    local configs=($(read_configs))
+    local current_token=""
+    local current_url=""
+    local is_active="false"
+    
+    # Find current configuration details
+    for config in "${configs[@]}"; do
+        if [[ -n "$config" ]]; then
+            IFS='|' read -r name token url active <<< "$config"
+            if [[ "$name" == "$config_name" ]]; then
+                current_token="$token"
+                current_url="$url"
+                is_active="$active"
+                break
+            fi
+        fi
+    done
+    
+    print_header
+    print_color "$BLUE" "✏️  编辑配置: $config_name"
+    echo "----------------------------------------"
+    echo
+    echo -e "${YELLOW}当前配置信息:${NC}"
+    echo -e "Token: $current_token"
+    echo -e "URL: $current_url"
+    echo -e "状态: $(if [[ "$is_active" == "true" ]]; then echo "${GREEN}激活${NC}"; else echo "${YELLOW}未激活${NC}"; fi)"
+    echo
+    
+    echo "请选择要编辑的项目："
+    echo "1. 编辑 Token"
+    echo "2. 编辑 URL"
+    echo "3. 编辑配置名称"
+    echo "4. 编辑全部信息"
+    echo "0. 返回"
+    echo
+    
+    while true; do
+        read -p "请选择 (0-4): " edit_choice
+        
+        case "$edit_choice" in
+            0)
+                return
+                ;;
+            1)
+                echo
+                read -p "请输入新的API Token (当前: ${current_token:0:20}...): " new_token
+                if [[ -n "$new_token" ]]; then
+                    update_config_field "$config_name" "token" "$new_token"
+                    print_color "$GREEN" "✅ Token 已更新"
+                    
+                    # If this is the active config, update .zshrc
+                    if [[ "$is_active" == "true" ]]; then
+                        backup_zshrc
+                        update_zshrc_config "$config_name"
+                        print_color "$GREEN" "✅ 已更新 .zshrc 中的激活配置"
+                        source_zshrc
+                    fi
+                else
+                    print_color "$YELLOW" "❌ Token不能为空，未更新"
+                fi
+                break
+                ;;
+            2)
+                echo
+                read -p "请输入新的Base URL (当前: $current_url): " new_url
+                if [[ -n "$new_url" ]]; then
+                    update_config_field "$config_name" "url" "$new_url"
+                    print_color "$GREEN" "✅ URL 已更新"
+                    
+                    # If this is the active config, update .zshrc
+                    if [[ "$is_active" == "true" ]]; then
+                        backup_zshrc
+                        update_zshrc_config "$config_name"
+                        print_color "$GREEN" "✅ 已更新 .zshrc 中的激活配置"
+                        source_zshrc
+                    fi
+                else
+                    print_color "$YELLOW" "❌ URL不能为空，未更新"
+                fi
+                break
+                ;;
+            3)
+                echo
+                read -p "请输入新的配置名称 (当前: $config_name): " new_name
+                if [[ -n "$new_name" && "$new_name" != "$config_name" ]]; then
+                    # Check if new name already exists
+                    if config_name_exists "$new_name"; then
+                        print_color "$RED" "❌ 配置名称 '$new_name' 已存在"
+                    else
+                        rename_config "$config_name" "$new_name"
+                        print_color "$GREEN" "✅ 配置名称已更新为: $new_name"
+                        
+                        # If this was the active config, update .zshrc comment
+                        if [[ "$is_active" == "true" ]]; then
+                            backup_zshrc
+                            update_zshrc_config "$new_name"
+                            print_color "$GREEN" "✅ 已更新 .zshrc 中的激活配置"
+                            source_zshrc
+                        fi
+                    fi
+                else
+                    print_color "$YELLOW" "❌ 配置名称不能为空或相同，未更新"
+                fi
+                break
+                ;;
+            4)
+                echo
+                read -p "请输入新的配置名称 (当前: $config_name): " new_name
+                read -p "请输入新的API Token (当前: ${current_token:0:20}...): " new_token
+                read -p "请输入新的Base URL (当前: $current_url): " new_url
+                
+                if [[ -n "$new_name" && -n "$new_token" && -n "$new_url" ]]; then
+                    # Check if new name already exists (if changed)
+                    if [[ "$new_name" != "$config_name" ]] && config_name_exists "$new_name"; then
+                        print_color "$RED" "❌ 配置名称 '$new_name' 已存在"
+                        break
+                    fi
+                    
+                    # Update all fields
+                    if [[ "$new_name" != "$config_name" ]]; then
+                        rename_config "$config_name" "$new_name"
+                        config_name="$new_name"
+                    fi
+                    update_config_field "$config_name" "token" "$new_token"
+                    update_config_field "$config_name" "url" "$new_url"
+                    
+                    print_color "$GREEN" "✅ 配置已全部更新"
+                    
+                    # If this is the active config, update .zshrc
+                    if [[ "$is_active" == "true" ]]; then
+                        backup_zshrc
+                        update_zshrc_config "$config_name"
+                        print_color "$GREEN" "✅ 已更新 .zshrc 中的激活配置"
+                        source_zshrc
+                    fi
+                else
+                    print_color "$RED" "❌ 所有字段都不能为空"
+                fi
+                break
+                ;;
+            *)
+                print_color "$RED" "❌ 无效选择，请输入 0-4"
+                ;;
+        esac
+    done
+}
+
+# Check if configuration name exists
+config_name_exists() {
+    local name="$1"
+    local configs=($(read_configs))
+    
+    for config in "${configs[@]}"; do
+        if [[ -n "$config" ]]; then
+            IFS='|' read -r existing_name token url active <<< "$config"
+            if [[ "$existing_name" == "$name" ]]; then
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+# Update a specific field in configuration
+update_config_field() {
+    local config_name="$1"
+    local field="$2"
+    local new_value="$3"
+    
+    local temp_file=$(mktemp)
+    local current_config=""
+    local in_target=false
+    
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+            current_config="${BASH_REMATCH[1]}"
+            in_target=false
+            if [[ "$current_config" == "$config_name" ]]; then
+                in_target=true
+            fi
+            echo "$line" >> "$temp_file"
+        elif [[ "$line" =~ ^${field}= ]]; then
+            if [[ "$in_target" == true ]]; then
+                echo "${field}=${new_value}" >> "$temp_file"
+            else
+                echo "$line" >> "$temp_file"
+            fi
+        else
+            echo "$line" >> "$temp_file"
+        fi
+    done < "$CONFIG_FILE"
+    
+    mv "$temp_file" "$CONFIG_FILE"
+}
+
+# Rename configuration
+rename_config() {
+    local old_name="$1"
+    local new_name="$2"
+    
+    local temp_file=$(mktemp)
+    local current_config=""
+    
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        if [[ "$line" =~ ^\[(.+)\]$ ]]; then
+            current_config="${BASH_REMATCH[1]}"
+            if [[ "$current_config" == "$old_name" ]]; then
+                echo "[$new_name]" >> "$temp_file"
+            else
+                echo "$line" >> "$temp_file"
+            fi
+        else
+            echo "$line" >> "$temp_file"
+        fi
+    done < "$CONFIG_FILE"
+    
+    mv "$temp_file" "$CONFIG_FILE"
+}
+
 # Delete configuration
 delete_config() {
     print_header
@@ -678,9 +956,10 @@ show_menu() {
     echo "2. 🔍 查看当前激活配置"  
     echo "3. 🔄 切换配置"
     echo "4. ➕ 添加新配置"
-    echo "5. 🗑️  删除配置"
-    echo "6. 🗂️  管理备份文件"
-    echo "7. 🚪 退出"
+    echo "5. ✏️  编辑配置"
+    echo "6. 🗑️  删除配置"
+    echo "7. 🗂️  管理备份文件"
+    echo "8. 🚪 退出"
     echo
 }
 
@@ -697,7 +976,7 @@ main() {
     
     while true; do
         show_menu
-        read -p "请输入选择 (1-7): " choice
+        read -p "请输入选择 (1-8): " choice
         
         case "$choice" in
             1)
@@ -713,17 +992,20 @@ main() {
                 add_config
                 ;;
             5)
-                delete_config
+                edit_config
                 ;;
             6)
-                manage_backups
+                delete_config
                 ;;
             7)
+                manage_backups
+                ;;
+            8)
                 print_color "$GREEN" "👋 再见!"
                 exit 0
                 ;;
             *)
-                print_color "$RED" "❌ 无效选择，请输入 1-7"
+                print_color "$RED" "❌ 无效选择，请输入 1-8"
                 sleep 2
                 ;;
         esac
