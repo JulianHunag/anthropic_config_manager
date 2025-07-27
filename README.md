@@ -21,9 +21,16 @@
 
 ### 快速开始
 
+#### 方法一：一键使用（推荐）
+直接下载并运行脚本：
+```bash
+curl -fsSL https://raw.githubusercontent.com/JulianHunag/anthropic_config_manager/refs/heads/main/anthropic_config.sh | bash
+```
+
+#### 方法二：本地安装
 1. 下载脚本到本地：
 ```bash
-git clone https://github.com/用户名/anthropic_config_manager.git
+git clone git@github.com:JulianHunag/anthropic_config_manager.git
 cd anthropic_config_manager
 ```
 
