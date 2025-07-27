@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ANTHROPIC API Interactive Configuration Manager for macOS
-# Author: macOS Bash Expert
+# Author: Julian
 # Version: 2.0
 # Description: Interactive management of ANTHROPIC API configurations
 
