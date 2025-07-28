@@ -44,6 +44,8 @@ ensure_config_file() {
 # Format: [config_name]
 # token=your_token_here
 # url=your_base_url_here
+# model=your_model_here (optional)
+# small_fast_model=your_small_fast_model_here (optional)
 # active=true/false
 EOF
         print_color "$YELLOW" "配置文件已创建: $CONFIG_FILE"
@@ -56,6 +58,8 @@ read_configs() {
     local current_config=""
     local token=""
     local url=""
+    local model=""
+    local small_fast_model=""
     local active="false"
     
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -66,17 +70,23 @@ read_configs() {
         if [[ "$line" =~ ^\[(.+)\]$ ]]; then
             # Save previous config if exists
             if [[ -n "$current_config" ]]; then
-                configs+=("$current_config|$token|$url|$active")
+                configs+=("$current_config|$token|$url|$model|$small_fast_model|$active")
             fi
             # Start new config
             current_config="${BASH_REMATCH[1]}"
             token=""
             url=""
+            model=""
+            small_fast_model=""
             active="false"
         elif [[ "$line" =~ ^token=(.+)$ ]]; then
             token="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^url=(.+)$ ]]; then
             url="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^model=(.*)$ ]]; then
+            model="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^small_fast_model=(.*)$ ]]; then
+            small_fast_model="${BASH_REMATCH[1]}"
         elif [[ "$line" =~ ^active=(.+)$ ]]; then
             active="${BASH_REMATCH[1]}"
         fi
@@ -84,7 +94,7 @@ read_configs() {
     
     # Save last config
     if [[ -n "$current_config" ]]; then
-        configs+=("$current_config|$token|$url|$active")
+        configs+=("$current_config|$token|$url|$model|$small_fast_model|$active")
     fi
     
     if [[ ${#configs[@]} -gt 0 ]]; then
@@ -104,7 +114,7 @@ list_configs() {
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r name token url active <<< "$config"
+                IFS='|' read -r name token url model small_fast_model active <<< "$config"
                 count=$((count + 1))
                 
                 local status_color="$YELLOW"
@@ -117,6 +127,12 @@ list_configs() {
                 echo -e "${BOLD}$count. $name${NC}"
                 echo -e "   Token: ${token:0:20}..."
                 echo -e "   URL: $url"
+                if [[ -n "$model" ]]; then
+                    echo -e "   Model: $model"
+                fi
+                if [[ -n "$small_fast_model" ]]; then
+                    echo -e "   Small Fast Model: $small_fast_model"
+                fi
                 echo -e "   状态: ${status_color}$status_text${NC}"
                 echo
             fi
@@ -145,11 +161,17 @@ show_current() {
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r name token url active <<< "$config"
+                IFS='|' read -r name token url model small_fast_model active <<< "$config"
                 if [[ "$active" == "true" ]]; then
                     echo -e "${GREEN}✅ 配置名称: $name${NC}"
                     echo -e "${GREEN}🔑 Token: $token${NC}"
                     echo -e "${GREEN}🌐 URL: $url${NC}"
+                    if [[ -n "$model" ]]; then
+                        echo -e "${GREEN}🤖 Model: $model${NC}"
+                    fi
+                    if [[ -n "$small_fast_model" ]]; then
+                        echo -e "${GREEN}⚡ Small Fast Model: $small_fast_model${NC}"
+                    fi
                     found=true
                     break
                 fi
@@ -179,7 +201,7 @@ switch_config() {
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r name token url active <<< "$config"
+                IFS='|' read -r name token url model small_fast_model active <<< "$config"
                 count=$((count + 1))
                 config_names+=("$name")
                 
@@ -252,7 +274,7 @@ add_config() {
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r existing_name token url active <<< "$config"
+                IFS='|' read -r existing_name token url model small_fast_model active <<< "$config"
                 if [[ "$existing_name" == "$name" ]]; then
                     print_color "$RED" "❌ 配置名称 '$name' 已存在"
                     read -p "按回车键继续..."
@@ -276,12 +298,19 @@ add_config() {
         return
     fi
     
+    echo
+    print_color "$YELLOW" "以下为可选配置项 (直接回车跳过):"
+    read -p "请输入Model (可选，默认为空): " model
+    read -p "请输入Small Fast Model (可选，默认为空): " small_fast_model
+    
     # Add to config file
     cat >> "$CONFIG_FILE" << EOF
 
 [$name]
 token=$token
 url=$url
+model=$model
+small_fast_model=$small_fast_model
 active=false
 EOF
     
@@ -304,7 +333,7 @@ edit_config() {
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r name token url active <<< "$config"
+                IFS='|' read -r name token url model small_fast_model active <<< "$config"
                 count=$((count + 1))
                 config_names+=("$name")
                 
@@ -354,16 +383,20 @@ edit_single_config() {
     local configs=($(read_configs))
     local current_token=""
     local current_url=""
+    local current_model=""
+    local current_small_fast_model=""
     local is_active="false"
     
     # Find current configuration details
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r name token url active <<< "$config"
+                IFS='|' read -r name token url model small_fast_model active <<< "$config"
                 if [[ "$name" == "$config_name" ]]; then
                     current_token="$token"
                     current_url="$url"
+                    current_model="$model"
+                    current_small_fast_model="$small_fast_model"
                     is_active="$active"
                     break
                 fi
@@ -378,19 +411,27 @@ edit_single_config() {
     echo -e "${YELLOW}当前配置信息:${NC}"
     echo -e "Token: $current_token"
     echo -e "URL: $current_url"
+    if [[ -n "$current_model" ]]; then
+        echo -e "Model: $current_model"
+    fi
+    if [[ -n "$current_small_fast_model" ]]; then
+        echo -e "Small Fast Model: $current_small_fast_model"
+    fi
     echo -e "状态: $(if [[ "$is_active" == "true" ]]; then echo "${GREEN}激活${NC}"; else echo "${YELLOW}未激活${NC}"; fi)"
     echo
     
     echo "请选择要编辑的项目："
     echo "1. 编辑 Token"
     echo "2. 编辑 URL"
-    echo "3. 编辑配置名称"
-    echo "4. 编辑全部信息"
+    echo "3. 编辑 Model"
+    echo "4. 编辑 Small Fast Model"
+    echo "5. 编辑配置名称"
+    echo "6. 编辑全部信息"
     echo "0. 返回"
     echo
     
     while true; do
-        read -p "请选择 (0-4): " edit_choice
+        read -p "请选择 (0-6): " edit_choice
         
         case "$edit_choice" in
             0)
@@ -436,6 +477,36 @@ edit_single_config() {
                 ;;
             3)
                 echo
+                read -p "请输入新的Model (当前: $current_model, 可选): " new_model
+                update_config_field "$config_name" "model" "$new_model"
+                print_color "$GREEN" "✅ Model 已更新"
+                
+                # If this is the active config, update .zshrc
+                if [[ "$is_active" == "true" ]]; then
+                    backup_zshrc
+                    update_zshrc_config "$config_name"
+                    print_color "$GREEN" "✅ 已更新 .zshrc 中的激活配置"
+                    source_zshrc
+                fi
+                break
+                ;;
+            4)
+                echo
+                read -p "请输入新的Small Fast Model (当前: $current_small_fast_model, 可选): " new_small_fast_model
+                update_config_field "$config_name" "small_fast_model" "$new_small_fast_model"
+                print_color "$GREEN" "✅ Small Fast Model 已更新"
+                
+                # If this is the active config, update .zshrc
+                if [[ "$is_active" == "true" ]]; then
+                    backup_zshrc
+                    update_zshrc_config "$config_name"
+                    print_color "$GREEN" "✅ 已更新 .zshrc 中的激活配置"
+                    source_zshrc
+                fi
+                break
+                ;;
+            5)
+                echo
                 read -p "请输入新的配置名称 (当前: $config_name): " new_name
                 if [[ -n "$new_name" && "$new_name" != "$config_name" ]]; then
                     # Check if new name already exists
@@ -458,11 +529,13 @@ edit_single_config() {
                 fi
                 break
                 ;;
-            4)
+            6)
                 echo
                 read -p "请输入新的配置名称 (当前: $config_name): " new_name
                 read -p "请输入新的API Token (当前: ${current_token:0:20}...): " new_token
                 read -p "请输入新的Base URL (当前: $current_url): " new_url
+                read -p "请输入新的Model (当前: $current_model, 可选): " new_model
+                read -p "请输入新的Small Fast Model (当前: $current_small_fast_model, 可选): " new_small_fast_model
                 
                 if [[ -n "$new_name" && -n "$new_token" && -n "$new_url" ]]; then
                     # Check if new name already exists (if changed)
@@ -478,6 +551,8 @@ edit_single_config() {
                     fi
                     update_config_field "$config_name" "token" "$new_token"
                     update_config_field "$config_name" "url" "$new_url"
+                    update_config_field "$config_name" "model" "$new_model"
+                    update_config_field "$config_name" "small_fast_model" "$new_small_fast_model"
                     
                     print_color "$GREEN" "✅ 配置已全部更新"
                     
@@ -489,12 +564,12 @@ edit_single_config() {
                         source_zshrc
                     fi
                 else
-                    print_color "$RED" "❌ 所有字段都不能为空"
+                    print_color "$RED" "❌ 必填字段(名称、Token、URL)不能为空"
                 fi
                 break
                 ;;
             *)
-                print_color "$RED" "❌ 无效选择，请输入 0-4"
+                print_color "$RED" "❌ 无效选择，请输入 0-6"
                 ;;
         esac
     done
@@ -703,15 +778,19 @@ update_zshrc_config() {
     local configs=($(read_configs))
     local target_token=""
     local target_url=""
+    local target_model=""
+    local target_small_fast_model=""
     
     # Find the configuration
     if [[ ${#configs[@]} -gt 0 ]]; then
         for config in "${configs[@]}"; do
             if [[ -n "$config" ]]; then
-                IFS='|' read -r name token url active <<< "$config"
+                IFS='|' read -r name token url model small_fast_model active <<< "$config"
                 if [[ "$name" == "$config_name" ]]; then
                     target_token="$token"
                     target_url="$url"
+                    target_model="$model"
+                    target_small_fast_model="$small_fast_model"
                     break
                 fi
             fi
@@ -732,13 +811,32 @@ update_zshrc_config() {
     !skip { print }
     ' "$ZSHRC_FILE" > "$temp_file"
     
-    # Add new configuration block at the end
+    # Remove trailing empty lines to prevent accumulation
+    # Use a simple approach to remove trailing empty lines
+    while [[ -s "$temp_file" ]] && [[ $(tail -1 "$temp_file") == "" ]]; do
+        sed -i '' -e '$d' "$temp_file"
+    done
+    
+    # Add new configuration block at the end with single empty line
     cat >> "$temp_file" << EOF
 
 # ANTHROPIC API Configuration - $config_name
 export ANTHROPIC_AUTH_TOKEN=$target_token
 export ANTHROPIC_BASE_URL=$target_url
 EOF
+
+    # Add model variables if they are not empty
+    if [[ -n "$target_model" ]]; then
+        cat >> "$temp_file" << EOF
+export ANTHROPIC_MODEL=$target_model
+EOF
+    fi
+
+    if [[ -n "$target_small_fast_model" ]]; then
+        cat >> "$temp_file" << EOF
+export ANTHROPIC_SMALL_FAST_MODEL=$target_small_fast_model
+EOF
+    fi
     
     mv "$temp_file" "$ZSHRC_FILE"
 }
