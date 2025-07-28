@@ -25,7 +25,7 @@
 #### 方法一：一键使用（推荐）
 直接下载并运行脚本：
 ```bash
-curl -fsSL https://raw.githubusercontent.com/JulianHunag/anthropic_config_manager/refs/heads/main/anthropic_config.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/JulianHunag/anthropic_config_manager/refs/heads/main/anthropic_config.sh)
 ```
 
 #### 方法二：本地安装
