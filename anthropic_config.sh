@@ -87,7 +87,9 @@ read_configs() {
         configs+=("$current_config|$token|$url|$active")
     fi
     
-    printf '%s\n' "${configs[@]}"
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        printf '%s\n' "${configs[@]}"
+    fi
 }
 
 # List all configurations
@@ -99,25 +101,27 @@ list_configs() {
     local configs=($(read_configs))
     local count=0
     
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            count=$((count + 1))
-            
-            local status_color="$YELLOW"
-            local status_text="未激活"
-            if [[ "$active" == "true" ]]; then
-                status_color="$GREEN"
-                status_text="✅ 当前激活"
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                count=$((count + 1))
+                
+                local status_color="$YELLOW"
+                local status_text="未激活"
+                if [[ "$active" == "true" ]]; then
+                    status_color="$GREEN"
+                    status_text="✅ 当前激活"
+                fi
+                
+                echo -e "${BOLD}$count. $name${NC}"
+                echo -e "   Token: ${token:0:20}..."
+                echo -e "   URL: $url"
+                echo -e "   状态: ${status_color}$status_text${NC}"
+                echo
             fi
-            
-            echo -e "${BOLD}$count. $name${NC}"
-            echo -e "   Token: ${token:0:20}..."
-            echo -e "   URL: $url"
-            echo -e "   状态: ${status_color}$status_text${NC}"
-            echo
-        fi
-    done
+        done
+    fi
     
     if [[ $count -eq 0 ]]; then
         print_color "$YELLOW" "❌ 没有找到任何配置"
@@ -138,18 +142,20 @@ show_current() {
     local configs=($(read_configs))
     local found=false
     
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            if [[ "$active" == "true" ]]; then
-                echo -e "${GREEN}✅ 配置名称: $name${NC}"
-                echo -e "${GREEN}🔑 Token: $token${NC}"
-                echo -e "${GREEN}🌐 URL: $url${NC}"
-                found=true
-                break
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                if [[ "$active" == "true" ]]; then
+                    echo -e "${GREEN}✅ 配置名称: $name${NC}"
+                    echo -e "${GREEN}🔑 Token: $token${NC}"
+                    echo -e "${GREEN}🌐 URL: $url${NC}"
+                    found=true
+                    break
+                fi
             fi
-        fi
-    done
+        done
+    fi
     
     if [[ "$found" == false ]]; then
         print_color "$YELLOW" "❌ 没有激活的配置"
@@ -170,20 +176,22 @@ switch_config() {
     local config_names=()
     
     # Display numbered list
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            count=$((count + 1))
-            config_names+=("$name")
-            
-            local status=""
-            if [[ "$active" == "true" ]]; then
-                status=" ${GREEN}(当前激活)${NC}"
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                count=$((count + 1))
+                config_names+=("$name")
+                
+                local status=""
+                if [[ "$active" == "true" ]]; then
+                    status=" ${GREEN}(当前激活)${NC}"
+                fi
+                
+                echo -e "$count. $name${status}"
             fi
-            
-            echo -e "$count. $name${status}"
-        fi
-    done
+        done
+    fi
     
     if [[ $count -eq 0 ]]; then
         print_color "$RED" "❌ 没有可用的配置"
@@ -241,16 +249,18 @@ add_config() {
     
     # Check if name already exists
     local configs=($(read_configs))
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r existing_name token url active <<< "$config"
-            if [[ "$existing_name" == "$name" ]]; then
-                print_color "$RED" "❌ 配置名称 '$name' 已存在"
-                read -p "按回车键继续..."
-                return
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r existing_name token url active <<< "$config"
+                if [[ "$existing_name" == "$name" ]]; then
+                    print_color "$RED" "❌ 配置名称 '$name' 已存在"
+                    read -p "按回车键继续..."
+                    return
+                fi
             fi
-        fi
-    done
+        done
+    fi
     
     read -p "请输入API Token: " token
     if [[ -z "$token" ]]; then
@@ -291,23 +301,25 @@ edit_config() {
     local config_names=()
     
     # Display numbered list
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            count=$((count + 1))
-            config_names+=("$name")
-            
-            local status=""
-            if [[ "$active" == "true" ]]; then
-                status=" ${GREEN}(当前激活)${NC}"
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                count=$((count + 1))
+                config_names+=("$name")
+                
+                local status=""
+                if [[ "$active" == "true" ]]; then
+                    status=" ${GREEN}(当前激活)${NC}"
+                fi
+                
+                echo -e "$count. $name${status}"
+                echo -e "   Token: ${token:0:20}..."
+                echo -e "   URL: $url"
+                echo
             fi
-            
-            echo -e "$count. $name${status}"
-            echo -e "   Token: ${token:0:20}..."
-            echo -e "   URL: $url"
-            echo
-        fi
-    done
+        done
+    fi
     
     if [[ $count -eq 0 ]]; then
         print_color "$RED" "❌ 没有可编辑的配置"
@@ -345,17 +357,19 @@ edit_single_config() {
     local is_active="false"
     
     # Find current configuration details
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            if [[ "$name" == "$config_name" ]]; then
-                current_token="$token"
-                current_url="$url"
-                is_active="$active"
-                break
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                if [[ "$name" == "$config_name" ]]; then
+                    current_token="$token"
+                    current_url="$url"
+                    is_active="$active"
+                    break
+                fi
             fi
-        fi
-    done
+        done
+    fi
     
     print_header
     print_color "$BLUE" "✏️  编辑配置: $config_name"
@@ -491,14 +505,16 @@ config_name_exists() {
     local name="$1"
     local configs=($(read_configs))
     
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r existing_name token url active <<< "$config"
-            if [[ "$existing_name" == "$name" ]]; then
-                return 0
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r existing_name token url active <<< "$config"
+                if [[ "$existing_name" == "$name" ]]; then
+                    return 0
+                fi
             fi
-        fi
-    done
+        done
+    fi
     return 1
 }
 
@@ -569,20 +585,22 @@ delete_config() {
     local config_names=()
     
     # Display numbered list
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            count=$((count + 1))
-            config_names+=("$name")
-            
-            local status=""
-            if [[ "$active" == "true" ]]; then
-                status=" ${GREEN}(当前激活)${NC}"
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                count=$((count + 1))
+                config_names+=("$name")
+                
+                local status=""
+                if [[ "$active" == "true" ]]; then
+                    status=" ${GREEN}(当前激活)${NC}"
+                fi
+                
+                echo -e "$count. $name${status}"
             fi
-            
-            echo -e "$count. $name${status}"
-        fi
-    done
+        done
+    fi
     
     if [[ $count -eq 0 ]]; then
         print_color "$RED" "❌ 没有可删除的配置"
@@ -687,16 +705,18 @@ update_zshrc_config() {
     local target_url=""
     
     # Find the configuration
-    for config in "${configs[@]}"; do
-        if [[ -n "$config" ]]; then
-            IFS='|' read -r name token url active <<< "$config"
-            if [[ "$name" == "$config_name" ]]; then
-                target_token="$token"
-                target_url="$url"
-                break
+    if [[ ${#configs[@]} -gt 0 ]]; then
+        for config in "${configs[@]}"; do
+            if [[ -n "$config" ]]; then
+                IFS='|' read -r name token url active <<< "$config"
+                if [[ "$name" == "$config_name" ]]; then
+                    target_token="$token"
+                    target_url="$url"
+                    break
+                fi
             fi
-        fi
-    done
+        done
+    fi
     
     if [[ -z "$target_token" ]]; then
         print_color "$RED" "❌ 配置 '$config_name' 未找到"
@@ -976,7 +996,8 @@ main() {
     
     while true; do
         show_menu
-        read -p "请输入选择 (1-8): " choice
+        printf "请输入选择 (1-8): "
+        read choice
         
         case "$choice" in
             1)
